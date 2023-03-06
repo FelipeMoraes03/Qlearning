@@ -1,25 +1,33 @@
 from subprocess import check_output, check_call
-from sys import executable, argv, exit
-from random import choice
+from sys import executable, argv, exit, maxsize
+from random import choices
 import polars as pl
 import connection as cn
 
-ACTIONS: list = ["left", "right", "jump"]
-
-DIRECTIONS: list = ["north", "east", "south", "west"]
-
-
 class Qtable:
-    file: str
-    df: pl.DataFrame
-
     def __init__(self):
-        self.file = "resultado.txt"
-        self.df = pl.read_csv(self.file, has_header=False, sep=" ")
+        self.__df: pl.DataFrame = pl.read_csv(
+            "resultado.txt", has_header=False, sep=" "
+        )
 
-    def __get_decoded_state(self, encoded_state: int) -> int:
-        platform_mask: int = 0b1111100
-        direction_mask: int = 0b0000011
+    def __get_action(self, cur_state: int) -> int:
+        optimal_action: int
+        optimal_result: int = -maxsize
+        for j in range(3):
+            if self.__df[cur_state][j] > optimal_result:
+                optimal_action = j
+                optimal_result = self.__df[cur_state][j]
+
+        action_probabilities: list = [0.1] * 3
+        action_probabilities[optimal_action] = 0.8
+
+        return choices(
+            population=[0, 1, 2], weights=action_probabilities, k=1
+        )[0]
+
+    def __get_decoded_state(self, encoded_state: str) -> int:
+        platform_mask = 0b1111100
+        direction_mask = 0b0000011
 
         decoded_state = int(encoded_state, 2)
 
@@ -29,36 +37,45 @@ class Qtable:
         return 4 * platform + direction
 
     def __update(
-        self, reward, cur_state, cur_action, learning_rate, discount_factor
+        self,
+        reward: int,
+        cur_state: int,
+        cur_action: int,
+        learning_rate: float,
+        discount_factor: float,
     ) -> None:
-        new_val = reward + discount_factor * max(self.df[cur_state + 1])
-        cur_val = self.df[cur_state][cur_action]
+        new_val: int = reward + discount_factor * max(self.__df[cur_state + 1])
+        cur_val: int = self.__df[cur_state][cur_action]
 
-        self.df[cur_state][cur_action] += learning_rate * (new_val - cur_val)
+        self.__df[cur_state][cur_action] += learning_rate * (new_val - cur_val)
 
     def execute(
-        self, s, num_iterations, cur_platform, learning_rate, discount_factor
+        self,
+        s: cn.socket.socket,
+        num_iterations: int,
+        cur_platform: int,
+        learning_rate: float,
+        discount_factor: float,
     ) -> None:
-        cur_state = 4 * cur_platform
+        cur_state: int = 4 * cur_platform
 
         for _ in range(num_iterations):
-            optimal_action = max(self.df[cur_state])
-            random_action = choice(ACTIONS)
+            cur_action: int = self.__get_action(cur_state)
 
-            encoded_state, reward = cn.get_state_reward(s, ACTIONS[optimal_action])
-            decoded_state = self.__get_decoded_state(encoded_state)
+            encoded_state, reward = cn.get_state_reward(s, cur_action)
+            decoded_state: int = self.__get_decoded_state(encoded_state)
 
             self.__update(
                 reward,
                 cur_state,
-                choice([optimal_action, random_action]),
+                cur_action,
                 learning_rate,
                 discount_factor,
             )
 
             cur_state = decoded_state
 
-        self.df.write_csv("resultado.txt", has_header=False, sep=" ")
+        self.__df.write_csv("resultado.txt", has_header=False, sep=" ")
 
 
 def main():
@@ -66,12 +83,12 @@ def main():
     installed_packages: list = [r.decode().split("==")[0] for r in reqs.split()]
     if "polars" not in installed_packages:
         ans: str = input(
-            "The 'polars' API, which is required by this script, \
-            is not installed on your system. Do you want to install it? [y/n]"
+            "The 'polars' API, which is required by this script, "
+            "is not installed on your system. Do you want to install it [y/n]? "
         )
 
         if ans == "y":
-            check_call(executable, "-m", "pip", "install", "polars")
+            check_call([executable, "-m", "pip", "install", "polars"])
         elif ans == "n":
             exit()
         else:
@@ -79,8 +96,8 @@ def main():
 
     if len(argv) != 5:
         exit(
-            f"Usage: python3 {argv[0]} [number of iterations] [starting platform] \
-             [learning rate] [discount factor]"
+            f"Usage: python3 {argv[0]} [number of iterations] "
+            "[starting platform] [learning rate] [discount factor]"
         )
 
     num_iterations = int(argv[1])
@@ -93,17 +110,17 @@ def main():
 
     if learning_rate <= 0 or learning_rate > 1:
         exit(
-            "Error: learning rate must be greater than 0 and \
-            less than or equal to 1"
+            "Error: learning rate must be greater than 0 "
+            "and less than or equal to 1"
         )
 
     if discount_factor < 0 or discount_factor > 1:
         exit(
-            "Error: discount factor must be greater than or equal to 0 and \
-            less than or equal to 1"
+            "Error: discount factor must be greater than or equal to 0 and "
+            "less than or equal to 1"
         )
 
-    s = cn.connect(2037)
+    s: cn.socket.socket or int = cn.connect(2037)
     if s != 0:
         table = Qtable()
 
@@ -112,14 +129,15 @@ def main():
 
             if cmd == "h":
                 print(
-                    "Available commands:\n\
-                    [h]elp: lists the available commands\n\
-                    [e]xecute: executes the Qlearning algorithm\n\
-                    [q]uit: terminates the execution of this script"
+                    "Available commands:\n"
+                    "[h]elp: lists the available commands\n"
+                    "[e]xecute: executes the Qlearning algorithm\n"
+                    "[q]uit: terminates the execution of this script"
                 )
             elif cmd == "e":
                 table.execute(
-                    num_iterations, starting_platform, learning_rate, discount_factor
+                    num_iterations, starting_platform, learning_rate,
+                    discount_factor
                 )
                 break
             elif cmd == "q":
