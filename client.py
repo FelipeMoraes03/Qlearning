@@ -12,6 +12,14 @@ class Qtable:
         self.__df = pd.read_csv("resultado.txt", header=None, sep=" ")
 
     def __get_action(self, cur_state: int) -> int:
+        """
+        There are 3 possible actions in each state: left, right and jump.
+        One of them is optimal and has a probability of 80%.
+        The rest of them have a probability of 10% each.
+
+        This method draws an action and returns it.
+        """
+
         optimal_action: int
         optimal_result: int = -maxsize
         for j in range(3):
@@ -25,6 +33,13 @@ class Qtable:
         return choices(population=[0, 1, 2], weights=action_probabilities, k=1)[0]
 
     def __get_decoded_state(self, encoded_state: str) -> int:
+        """
+        Each state is encoded as a bit vector, where the 5 MSBs designate the current platform,
+        and the 2 LSBs designate the current action.
+
+        This method decodes the state into a decimal integer and returns it.
+        """
+
         platform = int(encoded_state[2:7], 2)
         direction = int(encoded_state[7:9], 2)
 
@@ -38,6 +53,11 @@ class Qtable:
         learning_rate: float,
         discount_factor: float,
     ) -> None:
+        """
+        This method uses the Bellman equation to update this table's DataFrame,
+        given the current state and the current action.
+        """
+
         new_val: int = reward + discount_factor * (self.__df.max(axis=1)[cur_state + 1])
         cur_val: int = self.__df[cur_action][cur_state]
 
@@ -51,6 +71,11 @@ class Qtable:
         learning_rate: float,
         discount_factor: float,
     ) -> None:
+        """
+        This method executes the Qlearning algorithm on this table.
+        """
+
+        # Rationale: multiplying by 4 is the same as shifting 2 bits to the left
         cur_state: int = 4 * cur_platform
 
         for _ in range(num_iterations):
@@ -73,6 +98,7 @@ class Qtable:
 
 
 def main():
+    # Checks if the 'pandas' API is installed. If not, suggests installing it
     reqs: bytes = check_output([executable, "-m", "pip", "freeze"])
     installed_packages: list = [r.decode().split("==")[0] for r in reqs.split()]
     if "pandas" not in installed_packages:
