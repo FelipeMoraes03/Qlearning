@@ -15,9 +15,9 @@ class Qtable:
         optimal_action: int
         optimal_result: int = -maxsize
         for j in range(3):
-            if self.__df[cur_state][j] > optimal_result:
+            if self.__df[j][cur_state] > optimal_result:
                 optimal_action = j
-                optimal_result = self.__df[cur_state][j]
+                optimal_result = self.__df[j][cur_state]
 
         action_probabilities: list = [0.1] * 3
         action_probabilities[optimal_action] = 0.8
@@ -38,10 +38,10 @@ class Qtable:
         learning_rate: float,
         discount_factor: float,
     ) -> None:
-        new_val: int = reward + discount_factor * max(self.__df[cur_state + 1])
-        cur_val: int = self.__df[cur_state][cur_action]
+        new_val: int = reward + discount_factor * (self.__df.max(axis=1)[cur_state + 1])
+        cur_val: int = self.__df[cur_action][cur_state]
 
-        self.__df[cur_state][cur_action] += learning_rate * (new_val - cur_val)
+        self.__df[cur_action][cur_state] += learning_rate * (new_val - cur_val)
 
     def execute(
         self,
