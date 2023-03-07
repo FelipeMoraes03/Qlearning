@@ -9,7 +9,15 @@ ACTIONS = ["left", "right", "jump"]
 
 class Qtable:
     def __init__(self):
-        self.__df = pd.read_csv("resultado.txt", header=None, sep=" ")
+        self.__df = pd.read_csv("tableBase.txt", header=None, sep=" ")
+        self.__victory = 0
+        self.__death = 0
+
+    def get_victories(self):
+        return self.__victory
+    
+    def get_deaths(self):
+        return self.__death
 
     def __get_action(self, cur_state: int) -> int:
         """
@@ -49,6 +57,7 @@ class Qtable:
         self,
         reward: int,
         cur_state: int,
+        next_state: int,
         cur_action: int,
         learning_rate: float,
         discount_factor: float,
@@ -58,7 +67,7 @@ class Qtable:
         given the current state and the current action.
         """
 
-        new_val: int = reward + discount_factor * (self.__df.max(axis=1)[cur_state + 1])
+        new_val: int = reward + discount_factor * (self.__df.max(axis=1)[next_state])
         cur_val: int = self.__df[cur_action][cur_state]
 
         self.__df[cur_action][cur_state] += learning_rate * (new_val - cur_val)
@@ -84,9 +93,15 @@ class Qtable:
             encoded_state, reward = cn.get_state_reward(s, ACTIONS[cur_action])
             decoded_state: int = self.__get_decoded_state(encoded_state)
 
+            if reward == 300: 
+                self.__victory += 1
+            elif reward == -100: 
+                self.__death +=1
+
             self.__update(
                 reward,
                 cur_state,
+                decoded_state,
                 cur_action,
                 learning_rate,
                 discount_factor,
@@ -136,8 +151,8 @@ def main():
 
                 starting_platform = int(input("Starting platform: "))
                 assert (
-                    starting_platform >= 1 and starting_platform <= 24
-                ), "Error: platforms are numbered from 1 to 24"
+                    starting_platform >= 0 and starting_platform <= 23
+                ), "Error: platforms are numbered from 0 to 23"
 
                 learning_rate = float(input("Learning rate: "))
                 assert (
@@ -161,6 +176,8 @@ def main():
             else:
                 print("Error: unavailable command (enter 'h' for help)")
 
+    print(f"\nVictories: {table.get_victories()}")
+    print(f"Deaths: {table.get_deaths()}")
 
 if __name__ == "__main__":
     main()
