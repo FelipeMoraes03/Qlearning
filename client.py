@@ -1,14 +1,15 @@
 from subprocess import check_output, check_call
-from sys import executable, argv, exit, maxsize
+from sys import executable, exit, maxsize
 from random import choices
-import polars as pl
+import pandas as pd
 import connection as cn
+
+ACTIONS = ["left", "right", "jump"]
+
 
 class Qtable:
     def __init__(self):
-        self.__df: pl.DataFrame = pl.read_csv(
-            "resultado.txt", has_header=False, sep=" "
-        )
+        self.__df = pd.read_csv("resultado.txt", header=None, sep=" ")
 
     def __get_action(self, cur_state: int) -> int:
         optimal_action: int
@@ -21,18 +22,11 @@ class Qtable:
         action_probabilities: list = [0.1] * 3
         action_probabilities[optimal_action] = 0.8
 
-        return choices(
-            population=[0, 1, 2], weights=action_probabilities, k=1
-        )[0]
+        return choices(population=[0, 1, 2], weights=action_probabilities, k=1)[0]
 
     def __get_decoded_state(self, encoded_state: str) -> int:
-        platform_mask = 0b1111100
-        direction_mask = 0b0000011
-
-        decoded_state = int(encoded_state, 2)
-
-        platform: int = (decoded_state & platform_mask) >> 2
-        direction: int = decoded_state & direction_mask
+        platform = int(encoded_state[2:7], 2)
+        direction = int(encoded_state[7:9], 2)
 
         return 4 * platform + direction
 
@@ -62,7 +56,7 @@ class Qtable:
         for _ in range(num_iterations):
             cur_action: int = self.__get_action(cur_state)
 
-            encoded_state, reward = cn.get_state_reward(s, cur_action)
+            encoded_state, reward = cn.get_state_reward(s, ACTIONS[cur_action])
             decoded_state: int = self.__get_decoded_state(encoded_state)
 
             self.__update(
@@ -75,50 +69,24 @@ class Qtable:
 
             cur_state = decoded_state
 
-        self.__df.write_csv("resultado.txt", has_header=False, sep=" ")
+        self.__df.to_csv("resultado.txt", header=None, index=None, mode="w", sep=" ")
 
 
 def main():
     reqs: bytes = check_output([executable, "-m", "pip", "freeze"])
     installed_packages: list = [r.decode().split("==")[0] for r in reqs.split()]
-    if "polars" not in installed_packages:
+    if "pandas" not in installed_packages:
         ans: str = input(
-            "The 'polars' API, which is required by this script, "
+            "The 'pandas' API, which is required by this script, "
             "is not installed on your system. Do you want to install it [y/n]? "
         )
 
         if ans == "y":
-            check_call([executable, "-m", "pip", "install", "polars"])
+            check_call([executable, "-m", "pip", "install", "pandas"])
         elif ans == "n":
             exit()
         else:
             exit("Error: invalid answer")
-
-    if len(argv) != 5:
-        exit(
-            f"Usage: python3 {argv[0]} [number of iterations] "
-            "[starting platform] [learning rate] [discount factor]"
-        )
-
-    num_iterations = int(argv[1])
-    starting_platform = int(argv[2])
-    learning_rate = float(argv[3])
-    discount_factor = float(argv[4])
-
-    if num_iterations <= 0:
-        exit("Error: number of iterations must be positive")
-
-    if learning_rate <= 0 or learning_rate > 1:
-        exit(
-            "Error: learning rate must be greater than 0 "
-            "and less than or equal to 1"
-        )
-
-    if discount_factor < 0 or discount_factor > 1:
-        exit(
-            "Error: discount factor must be greater than or equal to 0 and "
-            "less than or equal to 1"
-        )
 
     s: cn.socket.socket or int = cn.connect(2037)
     if s != 0:
@@ -135,9 +103,30 @@ def main():
                     "[q]uit: terminates the execution of this script"
                 )
             elif cmd == "e":
+                num_iterations = int(input("Number of iterations: "))
+                assert (
+                    num_iterations <= 0
+                ), "Error: number of iterations must be positive"
+
+                starting_platform = int(input("Starting platform: "))
+                assert (
+                    starting_platform >= 1 and starting_platform <= 24
+                ), "Error: platforms are numbered from 1 to 24"
+
+                learning_rate = float(input("Learning rate: "))
+                assert (
+                    learning_rate <= 0 or learning_rate > 1
+                ), "Error: learning rate must be greater than 0 "
+                "and less than or equal to 1"
+
+                discount_factor = float(input("Discount factor: "))
+                assert (
+                    discount_factor < 0 or discount_factor > 1
+                ), "Error: discount factor must be greater than or equal to 0 "
+                "and less than or equal to 1"
+
                 table.execute(
-                    num_iterations, starting_platform, learning_rate,
-                    discount_factor
+                    num_iterations, starting_platform, learning_rate, discount_factor
                 )
                 break
             elif cmd == "q":
