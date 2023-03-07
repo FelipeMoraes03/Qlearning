@@ -105,7 +105,7 @@ def main():
             elif cmd == "e":
                 num_iterations = int(input("Number of iterations: "))
                 assert (
-                    num_iterations <= 0
+                    num_iterations > 0
                 ), "Error: number of iterations must be positive"
 
                 starting_platform = int(input("Starting platform: "))
@@ -115,18 +115,18 @@ def main():
 
                 learning_rate = float(input("Learning rate: "))
                 assert (
-                    learning_rate <= 0 or learning_rate > 1
+                    learning_rate > 0 and learning_rate <= 1
                 ), "Error: learning rate must be greater than 0 "
                 "and less than or equal to 1"
 
                 discount_factor = float(input("Discount factor: "))
                 assert (
-                    discount_factor < 0 or discount_factor > 1
+                    discount_factor >= 0 and discount_factor <= 1
                 ), "Error: discount factor must be greater than or equal to 0 "
                 "and less than or equal to 1"
 
                 table.execute(
-                    num_iterations, starting_platform, learning_rate, discount_factor
+                    s, num_iterations, starting_platform, learning_rate, discount_factor
                 )
                 break
             elif cmd == "q":
