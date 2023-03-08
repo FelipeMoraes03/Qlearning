@@ -9,25 +9,26 @@ ACTIONS = ["left", "right", "jump"]
 
 class Qtable:
     def __init__(self):
-        self.__df = pd.read_csv("tableBase.txt", header=None, sep=" ")
+        self.__df = pd.read_csv("resultado.txt", header=None, sep=" ")
         self.__victory = 0
         self.__death = 0
 
     def get_victories(self):
         return self.__victory
-    
+
     def get_deaths(self):
         return self.__death
 
-    def __get_action(self, cur_state: int) -> int:
+    def __get_action(self, cur_state: int, random_choice: int) -> int:
         """
         There are 3 possible actions in each state: left, right and jump.
-        One of them is optimal and has a probability of 80%.
-        The rest of them have a probability of 10% each.
+        One of them is optimal. You can set if the optimal's probability is 80% 
+        or 100%.
 
         This method draws an action and returns it.
         """
 
+        #Gets the optimal action for the current state
         optimal_action: int
         optimal_result: int = -maxsize
         for j in range(3):
@@ -35,10 +36,14 @@ class Qtable:
                 optimal_action = j
                 optimal_result = self.__df[j][cur_state]
 
-        action_probabilities: list = [0.1] * 3
-        action_probabilities[optimal_action] = 0.8
+        #Returns the choosen action
+        if random_choice == 1:
+            action_probabilities: list = [0.1] * 3
+            action_probabilities[optimal_action] = 0.8
 
-        return choices(population=[0, 1, 2], weights=action_probabilities, k=1)[0]
+            return choices(population=[0, 1, 2], weights=action_probabilities, k=1)[0]
+        else:
+            return optimal_action
 
     def __get_decoded_state(self, encoded_state: str) -> int:
         """
@@ -79,6 +84,7 @@ class Qtable:
         cur_platform: int,
         learning_rate: float,
         discount_factor: float,
+        random_choice: int,
     ) -> None:
         """
         This method executes the Qlearning algorithm on this table.
@@ -87,17 +93,19 @@ class Qtable:
         # Rationale: multiplying by 4 is the same as shifting 2 bits to the left
         cur_state: int = 4 * cur_platform
 
-        for _ in range(num_iterations):
-            cur_action: int = self.__get_action(cur_state)
+        for it in range(num_iterations):
+            cur_action: int = self.__get_action(cur_state, random_choice)
 
             encoded_state, reward = cn.get_state_reward(s, ACTIONS[cur_action])
             decoded_state: int = self.__get_decoded_state(encoded_state)
 
+            #Checks if you reached the and or if you fell 
             if reward == 300: 
                 self.__victory += 1
             elif reward == -100: 
                 self.__death +=1
 
+            #Updates the Qtable
             self.__update(
                 reward,
                 cur_state,
@@ -108,6 +116,8 @@ class Qtable:
             )
 
             cur_state = decoded_state
+
+            if it%100 == 0: print(f"Iteração {it}\n")
 
         self.__df.to_csv("resultado.txt", header=None, index=None, mode="w", sep=" ")
 
@@ -136,6 +146,7 @@ def main():
         while True:
             cmd: str = input(">")
 
+            #HELP
             if cmd == "h":
                 print(
                     "Available commands:\n"
@@ -143,6 +154,8 @@ def main():
                     "[e]xecute: executes the Qlearning algorithm\n"
                     "[q]uit: terminates the execution of this script"
                 )
+            
+            #Starts the execution
             elif cmd == "e":
                 num_iterations = int(input("Number of iterations: "))
                 assert (
@@ -166,17 +179,24 @@ def main():
                 ), "Error: discount factor must be greater than or equal to 0 "
                 "and less than or equal to 1"
 
+                random_choice = int(input("Action choice random [0 or 1]: "))
+                assert (
+                    random_choice == 0 or random_choice == 1
+                ), "Error: random choice must be 0 (false) or 1 (true)"
+                
                 table.execute(
-                    s, num_iterations, starting_platform, learning_rate, discount_factor
+                    s, num_iterations, starting_platform, learning_rate, discount_factor, random_choice
                 )
                 break
+            
+            #Quit
             elif cmd == "q":
                 s.close()
                 break
             else:
                 print("Error: unavailable command (enter 'h' for help)")
 
-    print(f"\nVictories: {table.get_victories()}")
+    print(f"Victories: {table.get_victories()}")
     print(f"Deaths: {table.get_deaths()}")
 
 if __name__ == "__main__":
